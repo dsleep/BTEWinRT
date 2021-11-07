@@ -9,6 +9,8 @@
 //
 
 //#include "stdafx.h"
+#include <chrono>
+
 
 #include <winrt/base.h>
 #include <winrt/Windows.Foundation.h>
@@ -46,50 +48,11 @@ using namespace winrt::Windows::Foundation::Collections;
 using namespace winrt::Windows::Devices::Enumeration;
 using namespace winrt::Windows::Devices::Bluetooth::GenericAttributeProfile;
 
-auto serviceUUID = Bluetooth::BluetoothUuidHelper::FromShortId(0xffe5);
-auto characteristicUUID = Bluetooth::BluetoothUuidHelper::FromShortId(0xffe9);
+
+using namespace std::chrono_literals;
 
 winrt::guid RequestedServiceGUID;
 std::vector<winrt::guid> CharacteristicsToWatch;
-
-
-std::wstring formatBluetoothAddress(unsigned long long BluetoothAddress) {
-	std::wostringstream ret;
-	ret << std::hex << std::setfill(L'0')
-		<< std::setw(2) << ((BluetoothAddress >> (5 * 8)) & 0xff) << ":"
-		<< std::setw(2) << ((BluetoothAddress >> (4 * 8)) & 0xff) << ":"
-		<< std::setw(2) << ((BluetoothAddress >> (3 * 8)) & 0xff) << ":"
-		<< std::setw(2) << ((BluetoothAddress >> (2 * 8)) & 0xff) << ":"
-		<< std::setw(2) << ((BluetoothAddress >> (1 * 8)) & 0xff) << ":"
-		<< std::setw(2) << ((BluetoothAddress >> (0 * 8)) & 0xff);
-	return ret.str();
-}
-//
-//concurrency::task<void> setColor(Bluetooth::GenericAttributeProfile::GattCharacteristic^ characteristic, byte red, byte green, byte blue) {
-//	auto writer = ref new Windows::Storage::Streams::DataWriter();
-//	auto data = new byte[7]{ 0x56, red, green, blue, 0x00, 0xf0, 0xaa };
-//	writer->WriteBytes(ref new Array<byte>(data, 7));
-//	auto status = co_await characteristic->WriteValueAsync(writer->DetachBuffer(), Bluetooth::GenericAttributeProfile::GattWriteOption::WriteWithoutResponse);
-//	std::wcout << "Write result: " << status.ToString()->Data() << std::endl;
-//}
-//
-//concurrency::task<void> connectToBulb(unsigned long long bluetoothAddress) {
-//	auto leDevice = co_await Bluetooth::BluetoothLEDevice::FromBluetoothAddressAsync(bluetoothAddress);
-//	auto servicesResult = co_await leDevice->GetGattServicesForUuidAsync(serviceUUID);
-//	auto service = servicesResult->Services->GetAt(0);
-//	auto characteristicsResult = co_await service->GetCharacteristicsForUuidAsync(characteristicUUID);
-//	auto characteristic = characteristicsResult->Characteristics->GetAt(0);
-//
-//	co_await setColor(characteristic, 0, 0xff, 0); // Green
-//
-//	for (;;) {
-//		Sleep(1000);
-//		co_await setColor(characteristic, 0xff, 0xff, 0);	// Yellow
-//
-//		Sleep(1000);
-//		co_await setColor(characteristic, 0xff, 0, 0);	// Red
-//	}
-//}
 
 struct OurBTWatcher : winrt::implements<OurBTWatcher, IInspectable>
 {
@@ -318,7 +281,6 @@ int main(Platform::Array<Platform::String^>^ args)
 {
 	winrt::init_apartment();
 
-
 	//GUID can be constructed from "{xxx....}" string using CLSID
 	CLSIDFromString(L"{366DEE95-85A3-41C1-A507-8C3E02342000}", (LPCLSID)&RequestedServiceGUID);
 
@@ -327,21 +289,6 @@ int main(Platform::Array<Platform::String^>^ args)
 	CharacteristicsToWatch.push_back(newCharToWatch);
 	//CLSIDFromString(L"{366DEE95-85A3-41C1-A507-8C3E02342002}", (LPCLSID)&RequestedServiceGUID);
 
-	//Step 1: find the BLE device handle from its GUID
-	//Microsoft::WRL::Wrappers::RoInitializeWrapper initialize(RO_INIT_MULTITHREADED);
-
-	//CoInitializeSecurity(
-	//	nullptr, // TODO: "O:BAG:BAD:(A;;0x7;;;PS)(A;;0x3;;;SY)(A;;0x7;;;BA)(A;;0x3;;;AC)(A;;0x3;;;LS)(A;;0x3;;;NS)"
-	//	-1,
-	//	nullptr,
-	//	nullptr,
-	//	RPC_C_AUTHN_LEVEL_DEFAULT,
-	//	RPC_C_IMP_LEVEL_IDENTIFY,
-	//	NULL,
-	//	EOAC_NONE,
-	//	nullptr);
-
-#if 1
 	// Additional properties we would like about the device.
 		// Property strings are documented here https://msdn.microsoft.com/en-us/library/windows/desktop/ff521659(v=vs.85).aspx
 
@@ -368,36 +315,16 @@ int main(Platform::Array<Platform::String^>^ args)
 	auto deviceWatcherStoppedToken = deviceWatcher.Stopped({ watcherClass.get(), &OurBTWatcher::DeviceWatcher_Stopped });
 
 	// Start the watcher. Active enumeration is limited to approximately 30 seconds.
-	   // This limits power usage and reduces interference with other Bluetooth activities.
-	   // To monitor for the presence of Bluetooth LE devices for an extended period,
-	   // use the BluetoothLEAdvertisementWatcher runtime class. See the BluetoothAdvertisement
-	   // sample for an example.
+	// This limits power usage and reduces interference with other Bluetooth activities.
+	// To monitor for the presence of Bluetooth LE devices for an extended period,
+	// use the BluetoothLEAdvertisementWatcher runtime class. See the BluetoothAdvertisement
+	// sample for an example.
 	deviceWatcher.Start();
 
-#else
+	while (true)
+	{
+		std::this_thread::sleep_for(20ms);
+	}
 
-	Bluetooth::Advertisement::BluetoothLEAdvertisementWatcher^ bleAdvertisementWatcher = ref new Bluetooth::Advertisement::BluetoothLEAdvertisementWatcher();
-	bleAdvertisementWatcher->ScanningMode = Bluetooth::Advertisement::BluetoothLEScanningMode::Active;
-	bleAdvertisementWatcher->Received += ref new Windows::Foundation::TypedEventHandler<Bluetooth::Advertisement::BluetoothLEAdvertisementWatcher^,
-		Windows::Devices::Bluetooth::Advertisement::BluetoothLEAdvertisementReceivedEventArgs^>(
-			[bleAdvertisementWatcher](Bluetooth::Advertisement::BluetoothLEAdvertisementWatcher^ watcher,
-				Bluetooth::Advertisement::BluetoothLEAdvertisementReceivedEventArgs^ eventArgs)
-			{
-				auto serviceUuids = eventArgs->Advertisement->ServiceUuids;
-				//unsigned int index = -1;
-				//if (serviceUuids->IndexOf(serviceUUID, &index))
-				{
-					String^ strAddress = ref new String(formatBluetoothAddress(eventArgs->BluetoothAddress).c_str());
-					std::wcout << "Target service found on device: " << strAddress->Data() << std::endl;
-
-					//bleAdvertisementWatcher->Stop();
-
-					//connectToBulb(eventArgs->BluetoothAddress);
-				}
-			});
-	bleAdvertisementWatcher->Start();
-#endif
-	int a;
-	std::cin >> a;
 	return 0;
 }
